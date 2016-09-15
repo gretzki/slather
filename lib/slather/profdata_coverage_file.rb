@@ -7,7 +7,10 @@ module Slather
     include CoverageInfo
     include CoverallsCoverage
 
-    attr_accessor :project, :source, :line_data
+    attr_accessor :project, :source, :line_data, :excluded_lines
+
+    Exclusion_Marker_Start = "//SLATHER_IGNORE_START"
+    Exclusion_Marker_Stop = "//SLATHER_IGNORE_STOP"
 
     def initialize(project, source)
       self.project = project
@@ -18,8 +21,36 @@ module Slather
     def create_line_data
       all_lines = source_code_lines
       line_data = Hash.new
-      all_lines.each { |line| line_data[line_number_in_line(line)] = line }
+      excluded_lines = Hash.new
+
+      exclusion_marker_count = 0
+      exclusion_active = false
+
+      for i in 0..all_lines.count do
+        line = all_lines[i]
+        line_number = line_number_in_line(line)
+        
+        line_data[line_number] = line
+        command_line = command_in_line(line)
+        exclusion_marker_count += 1 if command_line.end_with?(Exclusion_Marker_Start)
+        exclusion_marker_count -= 1 if command_line.end_with?(Exclusion_Marker_Stop)
+
+        #activate exclusion within two markers
+        exclusion_active = exclusion_marker_count > 0
+        if exclusion_marker_count > 1 || exclusion_marker_count < 0
+          puts "Illegal nesting of exclusion markers found in #{source_file_pathname}"
+          puts "#{line}"
+          puts "#{line_number}"
+          puts "#{command_line}"
+          puts "exclusion active"
+        end
+
+        # remember exclusion flag per line
+        excluded_lines[line_number] = exclusion_active 
+      end
+
       self.line_data = line_data
+      self.excluded_lines = excluded_lines
     end
     private :create_line_data
 
@@ -66,6 +97,14 @@ module Slather
       self.source
     end
 
+    def command_in_line(line)
+      line =~ /^(\s*)(\d*)\|(\s*)(\d+)\|(.*)/
+      if $5 != nil
+        return $5
+      end
+      ""
+    end
+
     def line_number_in_line(line)
       line =~ /^(\s*)(\d*)\|(\s*)(\d+)\|/
       if $4 != nil
@@ -90,9 +129,9 @@ module Slather
     end
 
     def line_coverage_data
-      source_code_lines.map do |line|
+      source_code_lines.reject { |line| excluded_lines[line_number_in_line(line)] }.map do |line|
         coverage_for_line(line)
-      end
+      end      
     end
 
     def coverage_for_line(line)

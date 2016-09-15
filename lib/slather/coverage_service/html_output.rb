@@ -70,9 +70,11 @@ module Slather
 
         total_relevant_lines = 0
         total_tested_lines = 0
+        total_excluded_lines = 0
         coverage_files.each { |coverage_file|
           total_tested_lines += coverage_file.num_lines_tested
           total_relevant_lines += coverage_file.num_lines_testable
+          total_excluded_lines += coverage_file.num_lines_excluded
         }
 
         builder = Nokogiri::HTML::Builder.with(template.at('#reports')) { |cov|
@@ -82,6 +84,7 @@ module Slather
             percentage = (total_tested_lines / total_relevant_lines.to_f) * 100.0
             cov.span "Total Coverage : "
             cov.span decimal_f(percentage) + '%', :class => class_for_coverage_percentage(percentage), :id => "total_coverage"
+            cov.span "Total excluded lines : #{total_excluded_lines}"
           }
 
           cov.input(:class => "search", :placeholder => "Search")
@@ -145,7 +148,7 @@ module Slather
             cov.span("#{decimal_f(percentage)}%", :class => class_for_coverage_percentage(percentage)) unless is_file_empty
           }
 
-          cov.h4("(#{coverage_file.num_lines_tested} of #{coverage_file.num_lines_testable} relevant lines covered)", :class => "cov_subtitle")
+          cov.h4("(#{coverage_file.num_lines_tested} of #{coverage_file.num_lines_testable} relevant lines covered, #{coverage_file.num_lines_excluded} lines excluded)", :class => "cov_subtitle")
           cov.h4(filepath, :class => "cov_filepath")
 
           if is_file_empty
@@ -162,8 +165,14 @@ module Slather
               line_number = data[1].to_i
               next unless line_number > 0
 
+              exluded = coverage_file.excluded_lines[line_number]
               coverage_data = data[0].strip
-              line_data = [line_number, data[2], hits_for_coverage_line(coverage_file, line)]
+              if exluded
+                line_data = [line_number, data[2], '🙈']
+              else
+                line_data = [line_number, data[2], hits_for_coverage_line(coverage_file, line)]
+              end
+
               classes = ["num", "src", "coverage"]
 
               cov.tr(:class => class_for_coverage_line(coverage_file,line)) {
@@ -245,6 +254,7 @@ module Slather
         when hits > 0 then "#{hits}x"
         else "!"
         end
+
       end
 
       def class_for_coverage_percentage(percentage)

@@ -9,6 +9,10 @@ module Slather
       line_coverage_data.compact.count
     end
 
+    def num_lines_excluded
+      self.excluded_lines.select { |ln, flag| flag }.count
+    end
+
     def rate_lines_tested
       if num_lines_testable > 0
         (num_lines_tested / num_lines_testable.to_f)
