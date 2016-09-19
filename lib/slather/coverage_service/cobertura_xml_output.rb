@@ -147,7 +147,13 @@ module Slather
         line_node = Nokogiri::XML::Node.new "line", @doc
         line_node['number'] = line_number
         line_node['branch'] = "false"
-        line_node['hits'] = coverage_file.coverage_for_line(line)
+
+        exluded = coverage_file.excluded_lines[line_number]
+        if exluded
+          line_node['hits'] = "1"
+        else
+          line_node['hits'] = coverage_file.coverage_for_line(line)
+        end
       
         unless coverage_file.branch_coverage_data_for_statement_on_line(line_number).empty?
           line_node['branch'] = "true"  
